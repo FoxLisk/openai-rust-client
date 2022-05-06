@@ -6,24 +6,36 @@
 use crate::endpoints::{CreateCompletion, CreateCompletionBuilder, Prompt, CreateCompletionResponse};
 use crate::{OpenAIClient, Error};
 
+use std::fmt::{Display, Formatter};
+
 /// Creates a content filter completion request.
 /// Parameters are as prescribed in https://beta.openai.com/docs/engines/content-filter
-pub fn create_content_filter_request(text: String) -> Result<CreateCompletion, String> {
+pub fn create_content_filter_request<S: Display>(text: S) -> Result<CreateCompletion, String> {
     CreateCompletionBuilder::new("content-filter-alpha")
         .max_tokens(1)
         .temperature(0.0)
         .top_p(0.0)
         .log_probs(10)
         .prompt(
-            Prompt::One {one:format!("<|endoftext|>{}\n--\nLabel:", text) }
+            Prompt::One {one: format!("<|endoftext|>{}\n--\nLabel:", text) }
         ).build()
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FilterLabel {
     Safe,
     Sensitive,
     Unsafe
+}
+
+impl Display for FilterLabel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterLabel::Safe => {write!(f, "FilterLabel::Safe")}
+            FilterLabel::Sensitive => {write!(f, "FilterLabel::Sensitive")}
+            FilterLabel::Unsafe => {write!(f, "FilterLabel::Unsafe")}
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -49,7 +61,7 @@ pub fn determine_filter_label(mut resp: CreateCompletionResponse) -> Result<Filt
     } else if label_choice.text == "1" {
         Ok(FilterLabel::Sensitive)
     } else if label_choice.text == "2" {
-        let mut lps = label_choice.log_probs.ok_or(ClassificationError::MissingLogProbs)?;
+        let lps = label_choice.log_probs.ok_or(ClassificationError::MissingLogProbs)?;
         let lp = lps.get(0).ok_or(ClassificationError::MissingLogProbs)?;
         let top_lp = lp.top_logprobs.get(0).ok_or(ClassificationError::MissingLogProbs)?;
         let unsafe_lp = top_lp.get("2").ok_or(ClassificationError::MissingLogProbs)?;
@@ -67,10 +79,10 @@ pub fn determine_filter_label(mut resp: CreateCompletionResponse) -> Result<Filt
                     FilterLabel::Sensitive
                 }
             },
-            (Some(safe), None) => {
+            (Some(_), None) => {
                 FilterLabel::Safe
             },
-            (None, Some(sensitive)) => {
+            (None, Some(_)) => {
                 FilterLabel::Sensitive
             },
             (None, None) => {FilterLabel::Unsafe},
@@ -83,14 +95,15 @@ pub fn determine_filter_label(mut resp: CreateCompletionResponse) -> Result<Filt
 }
 
 /// Runs all the steps in https://beta.openai.com/docs/engines/content-filter for you
-pub async fn filter_content(text: String, c: OpenAIClient) -> Result<FilterLabel, String> {
+pub async fn filter_content<S: Display>(text: S, c: &OpenAIClient) -> Result<FilterLabel, String> {
     let req = create_content_filter_request(text)?;
     let resp = match c.send(&req).await {
         Ok(r) => r,
         Err(e) => {
             match e {
-                Error::HttpError { .. } => {
+                Error::HttpError { err } => {
                     // retry once
+                    println!("Error getting content filtering; going to retry once. Err: {}", err);
                     c.send(&req).await.map_err(|e| e.to_string())?
                 }
                 Error::ClientError { err, status } => {

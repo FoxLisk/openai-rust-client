@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
 
-pub use content_filter::{filter_content};
+pub use content_filter::{filter_content, FilterLabel};
 
 const BASE_URL: &str = "https://api.openai.com/v1";
 

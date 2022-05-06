@@ -84,7 +84,10 @@ pub struct CreateCompletion {
     best_of: Option<u16>,
 
     /// Modify the likelihood of specified tokens appearing in the completion.
-    logit: Option<HashMap<String, f32>>,
+    logit_bias: Option<HashMap<String, f32>>,
+
+    /// A unique identifier representing your end-user, which will help OpenAI to monitor and detect abuse.
+    user: Option<String>,
 }
 
 impl Serialize for CreateCompletion {
@@ -125,8 +128,11 @@ impl Serialize for CreateCompletion {
         if self.best_of.is_some() {
             seq.serialize_entry("best_of", &self.best_of)?;
         }
-        if self.logit.is_some() {
-            seq.serialize_entry("logit", &self.logit)?;
+        if self.logit_bias.is_some() {
+            seq.serialize_entry("logit", &self.logit_bias)?;
+        }
+        if self.user.is_some() {
+            seq.serialize_entry("user", &self.user)?;
         }
         seq.end()
     }
@@ -209,7 +215,8 @@ impl CreateCompletionBuilder {
                 stop: NullableOneOrMany::None,
                 presence_penalty: None,
                 best_of: None,
-                logit: None,
+                logit_bias: None,
+                user: None,
             }),
         }
     }
@@ -339,10 +346,20 @@ impl CreateCompletionBuilder {
         }
     }
 
-    pub fn logit(mut self, logit: HashMap<String, f32>) -> Self {
+    pub fn logit_bias(mut self, logit_bias: HashMap<String, f32>) -> Self {
         match self.create_completion {
             Ok(ref mut cc) => {
-                cc.logit = Some(logit);
+                cc.logit_bias = Some(logit_bias);
+                self
+            }
+            Err(_) => self,
+        }
+    }
+
+    pub fn user(mut self, user: String) -> Self {
+        match self.create_completion {
+            Ok(ref mut cc) => {
+                cc.user = Some(user);
                 self
             }
             Err(_) => self,
