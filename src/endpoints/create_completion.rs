@@ -59,7 +59,8 @@ pub struct CreateCompletion {
 
     // not implemented: stream
     /// Include the log probabilities on the logprobs most likely tokens, as well the chosen tokens.
-    /// Max of 5
+    /// The docs say there's a max of 5; but the docs also mandate setting this to 10 for the content filter
+    /// endpoint and mention that you can potentially ask for more than 5 if you ask them nicely.
     log_probs: Option<u16>,
 
     /// Echo back the prompt in addition to the completion
@@ -114,7 +115,7 @@ impl Serialize for CreateCompletion {
             seq.serialize_entry("n", &self.n)?;
         }
         if self.log_probs.is_some() {
-            seq.serialize_entry("log_probs", &self.log_probs)?;
+            seq.serialize_entry("logprobs", &self.log_probs)?;
         }
 
         seq.serialize_entry("echo", &self.echo)?;
@@ -131,21 +132,47 @@ impl Serialize for CreateCompletion {
     }
 }
 
+
+#[derive(Deserialize, Debug)]
+pub struct LogProbs {
+    /// The list of tokens from the completion.
+    /// The concatenation of these is the full response; these were the tokens the engine used to create it
+    pub tokens: Vec<String>,
+
+    /// the logprobs of the actual tokens selected
+    pub token_logprobs: Vec<f32>,
+
+    /// the top choices for each token. Each element here should be a map of the top N or N+1 tokens by log probability,
+    /// where N was given in the request. The actually-selected token is always included, so if it is was not one of the
+    /// top N choices, it will be added (thus making the map N+1 elements)
+    pub top_logprobs: Vec<HashMap<String, f32>>,
+
+    /// The offset of the token in the text. This includes the given prompt; that is to say,
+    /// if you have a 20 character prompt, the first element of this array will be 20.
+    pub text_offset: Vec<u16>,
+}
+
+/// A Choice is effectively a completion.
 #[derive(Deserialize, Debug)]
 pub struct Choice {
-    text: String,
-    index: usize,
-    // TODO: logprobs
-    finish_reason: String,
+    /// The completed text
+    pub text: String,
+    /// The index of the prompt this Choice was generated for
+    pub index: usize,
+
+    /// Log probabilities (if present)
+    pub log_probs: Option<Vec<LogProbs>>,
+
+    pub finish_reason: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct CreateCompletionResponse {
-    id: String,
-    object: String,
-    created: u64,
-    model: String,
-    choices: Vec<Choice>,
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub choices: Vec<Choice>,
 }
 
 impl Request for CreateCompletion {
@@ -167,10 +194,10 @@ pub struct CreateCompletionBuilder {
 }
 
 impl CreateCompletionBuilder {
-    pub fn new(engine_id: String) -> Self {
+    pub fn new<S:Into<String>>(engine_id: S) -> Self {
         Self {
             create_completion: Ok(CreateCompletion {
-                engine_id,
+                engine_id: engine_id.into(),
                 prompt: NullableOneOrMany::None,
                 suffix: None,
                 max_tokens: None,
@@ -263,11 +290,7 @@ impl CreateCompletionBuilder {
     pub fn log_probs(mut self, log_probs: u16) -> Self {
         match self.create_completion {
             Ok(ref mut cc) => {
-                if log_probs > 5 {
-                    self.create_completion = Err("log_probs must not exceed 5".to_string());
-                } else {
-                    cc.log_probs = Some(log_probs);
-                }
+                cc.log_probs = Some(log_probs);
                 self
             }
             Err(_) => self,
@@ -277,7 +300,6 @@ impl CreateCompletionBuilder {
         match self.create_completion {
             Ok(ref mut cc) => {
                 cc.echo = echo;
-
                 self
             }
             Err(_) => self,

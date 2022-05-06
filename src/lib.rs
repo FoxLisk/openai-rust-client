@@ -1,10 +1,14 @@
 pub mod endpoints;
+mod content_filter;
 
 use aliri_braid::braid;
 use std::borrow::Cow;
 use reqwest::Client as ReqwestClient;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::fmt::{Display, Formatter};
+
+pub use content_filter::{filter_content};
 
 const BASE_URL: &str = "https://api.openai.com/v1";
 
@@ -28,6 +32,22 @@ pub enum Error {
     ClientError { err: String, status: u16 },
     /// Error deserializing the payload
     DeserializeError { err: String },
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::HttpError { err } => {
+                write!(f, "HttpError: {}", err)
+            }
+            Error::ClientError { err, status } => {
+                write!(f, "ClientError: status {} | error {}", status, err)
+            }
+            Error::DeserializeError { err } => {
+                write!(f, "Error deserializing payload: {}", err)
+            }
+        }
+    }
 }
 
 impl From<Method> for reqwest::Method {
@@ -63,7 +83,7 @@ impl OpenAIClient {
             client: ReqwestClient::new(),
         }
     }
-    pub async fn send<R: Request>(&self, req: R) -> Result<R::Resp, Error> {
+    pub async fn send<R: Request>(&self, req: &R) -> Result<R::Resp, Error> {
 
         let mut http_req = self.client.request(R::METHOD.into(), build_url(req.endpoint()))
             .bearer_auth(self.api_key.clone());
