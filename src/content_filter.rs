@@ -7,6 +7,7 @@ use crate::endpoints::{CreateCompletion, CreateCompletionBuilder, Prompt, Create
 use crate::{OpenAIClient, Error};
 
 use std::fmt::{Display, Formatter};
+use serde::Serialize;
 
 /// Creates a content filter completion request.
 /// Parameters are as prescribed in https://beta.openai.com/docs/engines/content-filter
@@ -21,7 +22,7 @@ pub fn create_content_filter_request<S: Display>(text: S) -> Result<CreateComple
         ).build()
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize, Clone)]
 pub enum FilterLabel {
     Safe,
     Sensitive,
