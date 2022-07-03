@@ -96,6 +96,7 @@ pub fn determine_filter_label(mut resp: CreateCompletionResponse) -> Result<Filt
 }
 
 /// Runs all the steps in https://beta.openai.com/docs/engines/content-filter for you
+#[deprecated(since="0.1.1", note="Use the moderations endpoint instead")]
 pub async fn filter_content<S: Display>(text: S, c: &OpenAIClient) -> Result<FilterLabel, String> {
     let req = create_content_filter_request(text)?;
     let resp = match c.send(&req).await {

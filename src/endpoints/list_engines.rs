@@ -16,6 +16,7 @@ pub struct ListEnginesResponse {
     object: String,
 }
 
+#[deprecated(since="0.1.1", note="Engines deprecated in favour of Models")]
 pub struct ListEngines {}
 
 
