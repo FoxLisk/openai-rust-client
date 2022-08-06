@@ -54,14 +54,14 @@ pub struct Categories<T> {
 #[derive(Deserialize, Debug)]
 pub struct ModerationsResult {
     /// each field holds a 1 if that category was flagged for moderation and a 0 otherwise
-    pub categories: Categories<u8>,
+    pub categories: Categories<bool>,
     /// "Contains a dictionary of per-category raw scores output by the model,
     /// denoting the model's confidence that the input violates the OpenAI's policy for
     /// the category. The value is between 0 and 1, where higher values denote higher confidence.
     /// The scores should not be interpreted as probabilities."
     pub category_scores: Categories<f64>,
     /// this will be a 1 if *any* category was flagged for moderation and a 0 otherwise
-    pub flagged: u8,
+    pub flagged: bool,
 }
 
 #[derive(Deserialize, Debug)]
